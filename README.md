@@ -7,20 +7,21 @@
 ## ✨ What works now
 
 - 🔐 RFC 6238 TOTP codes generated locally (SHA-1, SHA-256, and SHA-512).
-- 🧩 Add an account with a Base32 setup key or paste an `otpauth://totp/` link.
+- 🧩 Add an account by scanning a TOTP QR code, entering a Base32 setup key, or pasting an `otpauth://totp/` link.
 - ⏱️ Live expiry countdown and one-tap code copy.
 - 🗝️ Account data encrypted at rest using AES-256-GCM and an Android Keystore key.
-- 📴 No Internet, camera, SMS, contacts, or storage permission in the current app.
+- 📴 No Internet permission, SMS, or contacts permission. Android's system document picker handles backups without broad storage access. CameraX adds `ACCESS_NETWORK_STATE`, which does not grant Internet access.
+- 📷 Camera access is requested only when you choose **Scan QR**. QR decoding happens on-device.
+- 📦 Export a portable backup encrypted with a separate passphrase; restore it on another device through Android's file picker. Imports merge accounts and never replace existing entries.
+- 🧪 Backup format uses PBKDF2-HMAC-SHA256 (600,000 rounds) and AES-256-GCM with a random salt and nonce; file metadata is authenticated.
 - 🚫 Android cloud backup disabled so encrypted account data is not silently copied to a cloud backup.
 
 ## 🧭 Next milestones
 
-1. QR import with a camera permission requested only when scanning.
-2. Optional biometric app lock, backed by AndroidX BiometricPrompt and a Keystore key requiring user authentication.
-3. Clearly explained encrypted export/restore and migration recovery.
-4. Clipboard auto-clear, search, issuer icons, accessibility polish, and broader TOTP compatibility tests.
-5. Optional CyberVault integration, designed so authenticator seeds do not silently collapse the independence of a second factor.
-6. SMS assistance only through explicit Android SMS User Consent, never broad SMS inbox access; manual entry remains available.
+1. Optional biometric app lock, backed by AndroidX BiometricPrompt and a Keystore key requiring user authentication.
+2. Clipboard auto-clear, search, issuer icons, accessibility polish, and broader TOTP compatibility tests.
+3. Optional CyberVault integration, designed so authenticator seeds do not silently collapse the independence of a second factor.
+4. SMS assistance only through explicit Android SMS User Consent, never broad SMS inbox access; manual entry remains available.
 
 ## 🏗️ Build
 
@@ -34,7 +35,7 @@ The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. This is
 
 ## 🔒 Security model
 
-Read [the threat model](docs/THREAT_MODEL.md) and [security policy](SECURITY.md). Current local encryption does not protect seeds from a compromised device or someone using the unlocked app. It also has no portable recovery path yet: clearing app data, uninstalling, or losing the Keystore key can make entries unrecoverable. Keep service recovery codes separately.
+Read [the threat model](docs/THREAT_MODEL.md) and [security policy](SECURITY.md). Local encryption does not protect seeds from a compromised device or someone using the unlocked app. To migrate devices, export an encrypted backup and store its passphrase separately. CyberAuth cannot recover a forgotten backup passphrase. Keep service recovery codes separately, and test restoring a backup before relying on it.
 
 CyberAuth does not yet provide a password vault, cloud sync, biometric gate, SMS sending, or a way to recover a lost device. Do not treat TOTP stored alongside a password in the same future vault as an independent second factor.
 

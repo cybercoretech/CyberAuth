@@ -11,8 +11,10 @@ Include the affected version, Android version and device, a concise impact descr
 ## Current security boundaries
 
 - TOTP secrets are encrypted at rest with AES-256-GCM using a non-exportable Android Keystore key.
-- The application currently requests no network, camera, SMS, contacts, or storage permissions.
-- This first milestone has no biometric gate, master-password vault, cloud sync, or portable recovery export.
+- The app has no `INTERNET`, SMS, or contacts permission. CameraX adds `ACCESS_NETWORK_STATE`, which does not grant Internet access. Camera permission is requested only after the user starts QR scanning; backup files use Android's system document picker without broad storage permission.
+- Portable backups use a user passphrase with PBKDF2-HMAC-SHA256 (600,000 rounds) to derive an AES-256-GCM key. A random salt and nonce are generated for each backup; authenticated decryption completes before imported records are merged into local storage.
+- Backup protection depends on the passphrase. Choose a unique passphrase, store it separately from the backup file, and keep an independent recovery method. A forgotten passphrase cannot be reset.
+- This milestone has no biometric gate, cloud sync, or independent security audit.
 - Device compromise, malicious accessibility services, screenshots, clipboard exposure, and an unlocked device remain outside the protection offered by this early build.
 - Clearing app data or uninstalling can make locally stored accounts unrecoverable. Keep each service's recovery codes and another enrolled authenticator available.
 

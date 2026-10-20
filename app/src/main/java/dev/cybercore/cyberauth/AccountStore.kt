@@ -26,7 +26,7 @@ class AccountStore(context: Context) {
             input.readFully(nonce)
             val ciphertext = ByteArray(input.available())
             input.readFully(ciphertext)
-            decode(Cipher.getInstance("AES/GCM/NoPadding").run {
+            AccountCodec.decode(Cipher.getInstance("AES/GCM/NoPadding").run {
                 init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, nonce))
                 doFinal(ciphertext)
             })
@@ -41,7 +41,7 @@ class AccountStore(context: Context) {
             DataOutputStream(bytes).use { out ->
                 out.writeInt(cipher.iv.size)
                 out.write(cipher.iv)
-                out.write(cipher.doFinal(encode(accounts)))
+                out.write(cipher.doFinal(AccountCodec.encode(accounts)))
             }
         }.toByteArray()
         check(prefs.edit().putString(DATA_KEY, Base64.encodeToString(packed, Base64.NO_WRAP)).commit()) { "Could not save encrypted accounts" }
@@ -61,7 +61,16 @@ class AccountStore(context: Context) {
         }
     }
 
-    private fun encode(accounts: List<TotpAccount>): ByteArray = ByteArrayOutputStream().also { bytes ->
+    private companion object {
+        const val DATA_KEY = "encrypted_accounts_v1"
+        const val KEY_ALIAS = "cyberauth.device-storage.v1"
+    }
+}
+
+internal object AccountCodec {
+    private const val FORMAT_VERSION = 1
+
+    fun encode(accounts: List<TotpAccount>): ByteArray = ByteArrayOutputStream().also { bytes ->
         DataOutputStream(bytes).use { out ->
             out.writeInt(FORMAT_VERSION)
             out.writeInt(accounts.size)
@@ -73,17 +82,21 @@ class AccountStore(context: Context) {
         }
     }.toByteArray()
 
-    private fun decode(bytes: ByteArray): List<TotpAccount> = DataInputStream(bytes.inputStream()).use { input ->
-        require(input.readInt() == FORMAT_VERSION) { "Unsupported local account data version" }
-        val size = input.readInt().also { require(it in 0..1000) }
+    fun decode(bytes: ByteArray): List<TotpAccount> = DataInputStream(bytes.inputStream()).use { input ->
+        require(input.readInt() == FORMAT_VERSION) { "Unsupported account data version" }
+        val size = input.readInt().also { require(it in 0..1000) { "Account count is outside the supported range" } }
         List(size) {
-            TotpAccount(input.readUTF(), input.readUTF(), input.readUTF(), input.readUTF(), TotpAlgorithm.valueOf(input.readUTF()), input.readInt(), input.readInt())
+            val id = input.readUTF()
+            val issuer = input.readUTF()
+            val label = input.readUTF()
+            val secret = input.readUTF()
+            val algorithm = TotpAlgorithm.valueOf(input.readUTF())
+            val digits = input.readInt()
+            val period = input.readInt()
+            require(id.length <= 80 && issuer.length <= 256 && label.length <= 256 && secret.length <= 256) { "An account field is too long" }
+            require(digits in 6..8 && period in 1..86400) { "An account has invalid TOTP settings" }
+            Totp.decodeBase32(secret).fill(0)
+            TotpAccount(id, issuer, label, secret, algorithm, digits, period)
         }.also { require(input.available() == 0) { "Unexpected data after account list" } }
-    }
-
-    private companion object {
-        const val DATA_KEY = "encrypted_accounts_v1"
-        const val KEY_ALIAS = "cyberauth.device-storage.v1"
-        const val FORMAT_VERSION = 1
     }
 }
