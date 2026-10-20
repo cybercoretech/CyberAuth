@@ -8,6 +8,8 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.TextView
+import android.view.View
+import android.graphics.drawable.GradientDrawable
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -47,7 +49,10 @@ class QrScannerActivity : ComponentActivity() {
     }
 
     private fun buildScannerView() {
-        previewView = PreviewView(this).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
+        previewView = PreviewView(this).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+        }
         status = TextView(this).apply {
             text = getString(R.string.qr_scanner_prompt)
             textSize = 16f
@@ -60,8 +65,18 @@ class QrScannerActivity : ComponentActivity() {
             setBackgroundColor(android.graphics.Color.BLACK)
             addView(previewView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             addView(status, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
+            addView(View(this@QrScannerActivity).apply {
+                isClickable = false
+                isFocusable = false
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    setColor(0x00000000)
+                    setStroke(dp(3), 0xFF35E4EC.toInt())
+                    cornerRadius = dp(18).toFloat()
+                }
+            }, FrameLayout.LayoutParams(dp(264), dp(264), Gravity.CENTER))
             addView(Button(this@QrScannerActivity).apply { text = getString(R.string.cancel); setOnClickListener { finishCanceled(getString(R.string.qr_scan_canceled)) } },
-                FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = 40 })
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(48) })
         }
         setContentView(root)
     }
@@ -83,6 +98,7 @@ class QrScannerActivity : ComponentActivity() {
                 analysis.setAnalyzer(cameraExecutor) { image -> analyze(image, hints) }
                 provider.unbindAll()
                 provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                runOnUiThread { status.text = getString(R.string.qr_scanner_ready) }
             }.onFailure { finishCanceled(getString(R.string.qr_camera_start_failed)) }
         }, ContextCompat.getMainExecutor(this))
     }
@@ -126,6 +142,8 @@ class QrScannerActivity : ComponentActivity() {
         setResult(RESULT_CANCELED, intent.putExtra(EXTRA_SCAN_ERROR, reason))
         finish()
     }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     override fun onDestroy() {
         cameraExecutor.shutdown()
