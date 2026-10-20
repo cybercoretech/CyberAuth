@@ -34,6 +34,17 @@ function buildMenu() {
 button.addEventListener("click", () => { menu.hidden = !menu.hidden; button.setAttribute("aria-expanded", String(!menu.hidden)); });
 document.addEventListener("click", event => { if (!event.target.closest(".theme-picker")) closeMenu(); });
 document.addEventListener("keydown", event => { if (event.key === "Escape") closeMenu(); });
+document.querySelectorAll(".copy-button").forEach(copyButton => copyButton.addEventListener("click", async () => {
+  const command = copyButton.dataset.copy;
+  if (!command) return;
+  try {
+    await navigator.clipboard.writeText(command);
+    copyButton.textContent = "COPIED";
+    window.setTimeout(() => { copyButton.textContent = "COPY"; }, 1600);
+  } catch {
+    copyButton.textContent = "SELECT COMMAND";
+  }
+}));
 (async () => {
   try {
     const response = await fetch(catalogUrl); if (!response.ok) throw new Error("Theme catalog unavailable");

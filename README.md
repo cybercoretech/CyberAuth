@@ -10,7 +10,7 @@
 - 🧩 Add an account by scanning a TOTP QR code, entering a Base32 setup key, or pasting an `otpauth://totp/` link.
 - ⏱️ Live expiry countdown and one-tap code copy.
 - 🗝️ Account data encrypted at rest using AES-256-GCM and an Android Keystore key.
-- 📴 No Internet permission, SMS, or contacts permission. Android's system document picker handles backups without broad storage access. CameraX adds `ACCESS_NETWORK_STATE`, which does not grant Internet access.
+- 📴 No Internet or network-state permission, SMS, or contacts permission. Android's system document picker handles backups without broad storage access.
 - 📷 Camera access is requested only when you choose **Scan QR**. QR decoding happens on-device.
 - 📦 Export a portable backup encrypted with a separate passphrase; restore it on another device through Android's file picker. Imports merge accounts and never replace existing entries.
 - 🧪 Backup format uses PBKDF2-HMAC-SHA256 (600,000 rounds) and AES-256-GCM with a random salt and nonce; file metadata is authenticated.
@@ -31,7 +31,21 @@ Requirements: Android Studio with JDK 17 or newer and Android SDK 36.
 ./gradlew testDebugUnitTest lintDebug assembleDebug
 ```
 
-The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. This is a development build. Signed public releases and their verification instructions will be added only after release signing and recovery behavior are ready.
+## 📲 Install a release
+
+Download the signed APK from [GitHub Releases](https://github.com/cybercoretech/CyberAuth/releases/latest), then open it on your Android device and follow the installer prompt. Android may ask you to allow installs from your browser or file manager. CyberAuth supports Android 8.0 (API 26) and newer.
+
+Verify the APK before installing (Linux, macOS, or Termux):
+
+```sh
+curl -fLO https://github.com/cybercoretech/CyberAuth/releases/latest/download/CyberAuth.apk
+curl -fLO https://github.com/cybercoretech/CyberAuth/releases/latest/download/SHA256SUMS
+sha256sum --check SHA256SUMS
+```
+
+For update notifications, add `https://github.com/cybercoretech/CyberAuth` to [Obtainium](https://github.com/ImranR98/Obtainium). Release notes include the signing-certificate fingerprint; every update must be signed with the same project key.
+
+Build locally with `./gradlew testDebugUnitTest lintDebug assembleDebug`. The development APK is written to `app/build/outputs/apk/debug/app-debug.apk` and installs alongside the release app as a separate debug application.
 
 ## 🔒 Security model
 

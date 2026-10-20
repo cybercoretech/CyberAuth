@@ -1,0 +1,80 @@
+name: Signed Android Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cyberauth-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v5.0.2
+      - name: Verify signing secrets are configured
+        env:
+          KEYSTORE: ${{ secrets.CYBERAUTH_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.CYBERAUTH_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.CYBERAUTH_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.CYBERAUTH_RELEASE_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE" || { echo 'Missing CYBERAUTH_RELEASE_KEYSTORE_BASE64'; exit 1; }
+          test -n "$STORE_PASSWORD" || { echo 'Missing CYBERAUTH_RELEASE_STORE_PASSWORD'; exit 1; }
+          test -n "$KEY_ALIAS" || { echo 'Missing CYBERAUTH_RELEASE_KEY_ALIAS'; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo 'Missing CYBERAUTH_RELEASE_KEY_PASSWORD'; exit 1; }
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CYBERAUTH_RELEASE_KEYSTORE_BASE64 }}
+        run: echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/cyberauth-release.jks"
+      - name: Test, lint, and build signed APK
+        env:
+          CYBERAUTH_RELEASE_STORE_FILE: ${{ runner.temp }}/cyberauth-release.jks
+          CYBERAUTH_RELEASE_STORE_PASSWORD: ${{ secrets.CYBERAUTH_RELEASE_STORE_PASSWORD }}
+          CYBERAUTH_RELEASE_KEY_ALIAS: ${{ secrets.CYBERAUTH_RELEASE_KEY_ALIAS }}
+          CYBERAUTH_RELEASE_KEY_PASSWORD: ${{ secrets.CYBERAUTH_RELEASE_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon testDebugUnitTest lintRelease assembleRelease
+      - name: Prepare release assets and verification details
+        env:
+          CYBERAUTH_RELEASE_STORE_FILE: ${{ runner.temp }}/cyberauth-release.jks
+          CYBERAUTH_RELEASE_STORE_PASSWORD: ${{ secrets.CYBERAUTH_RELEASE_STORE_PASSWORD }}
+          CYBERAUTH_RELEASE_KEY_ALIAS: ${{ secrets.CYBERAUTH_RELEASE_KEY_ALIAS }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          version="${TAG_NAME#v}"
+          grep -Fq "versionName = \"${version}\"" app/build.gradle.kts || { echo "Tag $TAG_NAME does not match app version $version"; exit 1; }
+          apk="CyberAuth.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          sha256sum "$apk" > SHA256SUMS
+          keytool -list -v -keystore "$CYBERAUTH_RELEASE_STORE_FILE" -alias "$CYBERAUTH_RELEASE_KEY_ALIAS" -storepass "$CYBERAUTH_RELEASE_STORE_PASSWORD" \
+            | awk -F': ' '/SHA256:/{print $2; exit}' > SIGNING_CERTIFICATE_SHA256.txt
+          cat > RELEASE_NOTES.md <<EOF
+          ## CyberAuth ${version} — early access
+
+          Signed Android APK for Android 8.0 and newer.
+
+          ### Install
+          Download `CyberAuth.apk` below, verify it with `SHA256SUMS`, then open it on your Android device and follow the installer prompt. Android may ask you to allow installs from your browser or file manager.
+
+          For update notifications, add `https://github.com/cybercoretech/CyberAuth` to Obtainium.
+
+          ### Verify the signing certificate
+          The APK is signed with the project's release key. Its SHA-256 certificate fingerprint is in `SIGNING_CERTIFICATE_SHA256.txt`. Future releases will use the same signing key.
+
+          ### Security status
+          This is an early-access authenticator and has not had an independent security audit. Keep service recovery codes and another sign-in method available. The app does not yet provide biometric app lock or cloud sync. Read the [threat model](https://github.com/cybercoretech/CyberAuth/blob/main/docs/THREAT_MODEL.md) before relying on it as your only way to access important accounts.
+          EOF
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: gh release create "$TAG_NAME" CyberAuth.apk SHA256SUMS SIGNING_CERTIFICATE_SHA256.txt --title "CyberAuth ${TAG_NAME}" --notes-file RELEASE_NOTES.md

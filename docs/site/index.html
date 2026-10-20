@@ -12,7 +12,7 @@
 <body>
   <header class="header wrap">
     <a class="brand" href="#top" aria-label="CyberAuth home"><img src="assets/mark.svg" width="38" height="38" alt=""><span>CYBERAUTH <small>ANDROID AUTHENTICATOR</small></span></a>
-    <nav aria-label="Main navigation"><a href="#features">FEATURES</a><a href="#security">SECURITY</a><a href="#roadmap">ROADMAP</a><a href="https://github.com/cybercoretech/CyberAuth">SOURCE ↗</a></nav>
+    <nav aria-label="Main navigation"><a href="#download">DOWNLOAD</a><a href="#features">FEATURES</a><a href="#security">SECURITY</a><a href="#roadmap">ROADMAP</a><a href="https://github.com/cybercoretech/CyberAuth">SOURCE ↗</a></nav>
     <div class="theme-picker"><span>CYBERGRID</span><button id="themeButton" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="themeMenu">THEMES…</button><div id="themeMenu" role="listbox" aria-label="Choose a Cybercore theme" hidden></div><select id="themeSelect" aria-label="Choose a Cybercore theme" tabindex="-1"></select></div>
   </header>
 
@@ -22,7 +22,7 @@
         <p class="eyebrow"><i></i> OFFLINE AUTHENTICATOR / ANDROID</p>
         <h1>Your codes.<br><em>Your device.</em></h1>
         <p class="lede">A focused, private home for your time-based sign-in codes. Scan setup QR codes on-device, generate TOTP locally, and move accounts with a passphrase-encrypted backup.</p>
-        <div class="actions"><a class="button primary" href="https://github.com/cybercoretech/CyberAuth">EXPLORE THE SOURCE <span>↗</span></a><a class="button" href="#security">READ THE SECURITY MODEL <span>↓</span></a></div>
+        <div class="actions"><a class="button primary" href="#download">GET THE APK <span>↓</span></a><a class="button" href="https://github.com/cybercoretech/CyberAuth">EXPLORE THE SOURCE <span>↗</span></a></div>
         <p class="signal">◎ NO INTERNET ACCESS <span>·</span> AES-GCM + ANDROID KEYSTORE <span>·</span> OPEN SOURCE</p>
       </div>
       <div class="device-wrap" aria-label="Illustrative CyberAuth app preview">
@@ -37,6 +37,16 @@
     </section>
 
     <section class="trust-strip"><div class="wrap trust-items"><span><b>01</b> LOCAL CODE GENERATION</span><span><b>02</b> ENCRYPTED DEVICE STORAGE</span><span><b>03</b> NO TRACKING OR ACCOUNT</span></div></section>
+
+    <section class="section wrap download" id="download">
+      <div class="section-title"><p class="eyebrow">SIGNED GITHUB RELEASE / ANDROID 8+</p><h2>Install CyberAuth.<br><em>Keep control.</em></h2><p>The signed Android APK is distributed through GitHub Releases. Verify its SHA-256 checksum before installing. CyberAuth is early software and has not had an independent security audit.</p></div>
+      <div class="download-panel">
+        <div class="download-actions"><a class="button primary" href="https://github.com/cybercoretech/CyberAuth/releases/latest/download/CyberAuth.apk">DOWNLOAD SIGNED APK ↗</a><a class="button" href="https://github.com/cybercoretech/CyberAuth/releases/latest">RELEASE NOTES + CHECKSUM ↗</a></div>
+        <p class="eyebrow">LINUX / MACOS / TERMUX · DOWNLOAD + VERIFY</p>
+        <div class="copy-command"><code>curl -fLO https://github.com/cybercoretech/CyberAuth/releases/latest/download/CyberAuth.apk &amp;&amp; curl -fLO https://github.com/cybercoretech/CyberAuth/releases/latest/download/SHA256SUMS &amp;&amp; sha256sum --check SHA256SUMS</code><button type="button" class="copy-button" data-copy="curl -fLO https://github.com/cybercoretech/CyberAuth/releases/latest/download/CyberAuth.apk &amp;&amp; curl -fLO https://github.com/cybercoretech/CyberAuth/releases/latest/download/SHA256SUMS &amp;&amp; sha256sum --check SHA256SUMS">COPY</button></div>
+        <div class="install-steps"><article><b>01 / DOWNLOAD</b><p>Get the APK directly on Android, or download it on a computer and transfer it to your phone.</p></article><article><b>02 / INSTALL</b><p>Open the APK. If prompted, allow your browser or file manager to install this app, then confirm Android's installer.</p></article><article><b>03 / UPDATES</b><p>Add <a href="https://github.com/cybercoretech/CyberAuth">CyberAuth on GitHub</a> to Obtainium to receive release updates.</p></article></div>
+      </div>
+    </section>
 
     <section class="section wrap" id="features">
       <div class="section-title"><p class="eyebrow">01 / AUTHENTICATOR, FOCUSED</p><h2>Less friction.<br><em>Clearer control.</em></h2><p>CyberAuth follows the practical strengths of modern authenticator apps: fast code access, standards compatibility, and privacy that does not depend on an account in the cloud.</p></div>

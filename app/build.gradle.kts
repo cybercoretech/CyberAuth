@@ -3,6 +3,17 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val releaseSigningValues = listOf(
+    System.getenv("CYBERAUTH_RELEASE_STORE_FILE"),
+    System.getenv("CYBERAUTH_RELEASE_STORE_PASSWORD"),
+    System.getenv("CYBERAUTH_RELEASE_KEY_ALIAS"),
+    System.getenv("CYBERAUTH_RELEASE_KEY_PASSWORD"),
+)
+val hasReleaseSigning = releaseSigningValues.any { !it.isNullOrBlank() }
+require(!hasReleaseSigning || releaseSigningValues.all { !it.isNullOrBlank() }) {
+    "Set all CYBERAUTH_RELEASE_* signing variables together, or leave them all unset."
+}
+
 android {
     namespace = "dev.cybercore.cyberauth"
     compileSdk = 36
@@ -11,11 +22,22 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0-dev"
+        versionName = "0.1.0"
+    }
+    if (hasReleaseSigning) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(System.getenv("CYBERAUTH_RELEASE_STORE_FILE"))
+                storePassword = System.getenv("CYBERAUTH_RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("CYBERAUTH_RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("CYBERAUTH_RELEASE_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         debug { applicationIdSuffix = ".debug"; versionNameSuffix = "-debug" }
         release {
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
