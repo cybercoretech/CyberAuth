@@ -4,31 +4,28 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.TextView
-import android.view.View
 import android.graphics.drawable.GradientDrawable
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
-import com.google.zxing.BinaryBitmap
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.DecodeHintType
-import com.google.zxing.LuminanceSource
-import com.google.zxing.PlanarYUVLuminanceSource
-import com.google.zxing.ReaderException
-import com.google.zxing.common.HybridBinarizer
-import com.google.zxing.common.GlobalHistogramBinarizer
-import com.google.zxing.qrcode.QRCodeReader
-import java.util.EnumMap
+import com.google.mlkit.vision.barcode.BarcodeScanner
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -37,12 +34,18 @@ class QrScannerActivity : ComponentActivity() {
     private val delivered = AtomicBoolean(false)
     private lateinit var previewView: PreviewView
     private lateinit var status: TextView
+    private lateinit var torchButton: Button
+    private lateinit var scanner: BarcodeScanner
+    private var camera: Camera? = null
     private val requestCamera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startCamera() else finishCanceled(getString(R.string.qr_camera_permission_needed))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        scanner = BarcodeScanning.getClient(
+            BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
+        )
         buildScannerView()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) startCamera()
         else requestCamera.launch(Manifest.permission.CAMERA)
@@ -61,6 +64,15 @@ class QrScannerActivity : ComponentActivity() {
             setPadding(28, 26, 28, 26)
             setBackgroundColor(0xCC101722.toInt())
         }
+        torchButton = Button(this).apply {
+            text = getString(R.string.qr_torch_on)
+            visibility = View.GONE
+            setOnClickListener { camera?.let { activeCamera ->
+                val enable = activeCamera.cameraInfo.torchState.value != androidx.camera.core.TorchState.ON
+                activeCamera.cameraControl.enableTorch(enable)
+                text = getString(if (enable) R.string.qr_torch_off else R.string.qr_torch_on)
+            } }
+        }
         val root = FrameLayout(this).apply {
             setBackgroundColor(android.graphics.Color.BLACK)
             addView(previewView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -75,6 +87,9 @@ class QrScannerActivity : ComponentActivity() {
                     cornerRadius = dp(18).toFloat()
                 }
             }, FrameLayout.LayoutParams(dp(264), dp(264), Gravity.CENTER))
+            addView(torchButton, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.START).apply {
+                leftMargin = dp(24); bottomMargin = dp(48)
+            })
             addView(Button(this@QrScannerActivity).apply { text = getString(R.string.cancel); setOnClickListener { finishCanceled(getString(R.string.qr_scan_canceled)) } },
                 FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(48) })
         }
@@ -91,50 +106,42 @@ class QrScannerActivity : ComponentActivity() {
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setTargetRotation(previewView.display?.rotation ?: android.view.Surface.ROTATION_0)
                     .build()
-                val hints = EnumMap<DecodeHintType, Any>(DecodeHintType::class.java).apply {
-                    put(DecodeHintType.POSSIBLE_FORMATS, listOf(BarcodeFormat.QR_CODE))
-                    put(DecodeHintType.TRY_HARDER, true)
-                }
-                analysis.setAnalyzer(cameraExecutor) { image -> analyze(image, hints) }
+                analysis.setAnalyzer(cameraExecutor, ::analyze)
                 provider.unbindAll()
-                provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                camera = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                torchButton.visibility = if (camera?.cameraInfo?.hasFlashUnit() == true) View.VISIBLE else View.GONE
                 runOnUiThread { status.text = getString(R.string.qr_scanner_ready) }
             }.onFailure { finishCanceled(getString(R.string.qr_camera_start_failed)) }
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun analyze(image: ImageProxy, hints: Map<DecodeHintType, Any>) {
+    @androidx.annotation.OptIn(markerClass = [ExperimentalGetImage::class])
+    private fun analyze(imageProxy: ImageProxy) {
+        val mediaImage = imageProxy.image
+        if (mediaImage == null || delivered.get()) {
+            imageProxy.close()
+            return
+        }
         try {
-            if (delivered.get()) return
-            val plane = image.planes.firstOrNull() ?: return
-            val buffer = plane.buffer.duplicate()
-            val rowStride = plane.rowStride
-            val pixelStride = plane.pixelStride
-            val yBytes = ByteArray(buffer.remaining()).also(buffer::get)
-            val fullyPaddedPlaneBytes = rowStride.toLong() * image.height
-            val luminance = if (pixelStride == 1 && yBytes.size >= fullyPaddedPlaneBytes) {
-                PlanarYUVLuminanceSource(yBytes, rowStride, image.height, 0, 0, image.width, image.height, false)
-            } else {
-                val compact = compactYPlane(yBytes, image.width, image.height, rowStride, pixelStride) ?: return
-                PlanarYUVLuminanceSource(compact, image.width, image.height, 0, 0, image.width, image.height, false)
-            }
-            val rotated = when (image.imageInfo.rotationDegrees) {
-                90 -> luminance.rotateCounterClockwise().rotateCounterClockwise().rotateCounterClockwise()
-                180 -> luminance.rotateCounterClockwise().rotateCounterClockwise()
-                270 -> luminance.rotateCounterClockwise()
-                else -> luminance
-            }
-            val decoded = decodeQr(rotated, hints) ?: return
-            if (decoded.startsWith("otpauth://totp/", ignoreCase = true) && delivered.compareAndSet(false, true)) {
-                runOnUiThread {
-                    setResult(RESULT_OK, intent.putExtra(EXTRA_OTP_URI, decoded))
-                    finish()
+            val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+            scanner.process(inputImage)
+                .addOnSuccessListener { barcodes ->
+                    val value = barcodes.firstNotNullOfOrNull { it.rawValue } ?: return@addOnSuccessListener
+                    if (isTotpQrValue(value) && delivered.compareAndSet(false, true)) {
+                        runOnUiThread {
+                            setResult(RESULT_OK, intent.putExtra(EXTRA_OTP_URI, value))
+                            finish()
+                        }
+                    } else if (!delivered.get()) {
+                        runOnUiThread { status.text = getString(R.string.qr_not_totp) }
+                    }
                 }
-            }
+                .addOnFailureListener {
+                    if (!delivered.get()) runOnUiThread { status.text = getString(R.string.qr_scanner_ready) }
+                }
+                .addOnCompleteListener { imageProxy.close() }
         } catch (_: Exception) {
-            // Ignore undecodable frames; the user can keep the camera pointed at the QR.
-        } finally {
-            image.close()
+            imageProxy.close()
         }
     }
 
@@ -147,6 +154,7 @@ class QrScannerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         cameraExecutor.shutdown()
+        if (::scanner.isInitialized) scanner.close()
         super.onDestroy()
     }
 
@@ -156,28 +164,4 @@ class QrScannerActivity : ComponentActivity() {
     }
 }
 
-internal fun compactYPlane(data: ByteArray, width: Int, height: Int, rowStride: Int, pixelStride: Int): ByteArray? {
-    if (width <= 0 || height <= 0 || rowStride <= 0 || pixelStride <= 0) return null
-    val lastSample = (height - 1L) * rowStride + (width - 1L) * pixelStride
-    if (lastSample >= data.size) return null
-    return ByteArray(width * height).also { compact ->
-        for (y in 0 until height) {
-            val row = y * rowStride
-            val output = y * width
-            for (x in 0 until width) compact[output + x] = data[row + x * pixelStride]
-        }
-    }
-}
-
-internal fun decodeQr(source: LuminanceSource, hints: Map<DecodeHintType, Any>): String? {
-    try {
-        return QRCodeReader().decode(BinaryBitmap(HybridBinarizer(source)), hints).text
-    } catch (_: ReaderException) {
-        // Displays with uneven brightness can defeat adaptive thresholding; retry globally.
-    }
-    return try {
-        QRCodeReader().decode(BinaryBitmap(GlobalHistogramBinarizer(source)), hints).text
-    } catch (_: ReaderException) {
-        null
-    }
-}
+internal fun isTotpQrValue(value: String): Boolean = value.startsWith("otpauth://totp/", ignoreCase = true)

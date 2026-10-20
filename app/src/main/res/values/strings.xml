@@ -2,6 +2,9 @@
     <string name="cancel">Cancel</string>
     <string name="qr_scanner_prompt">Point your camera at a TOTP setup QR code</string>
     <string name="qr_scanner_ready">Camera ready — center the QR code in the frame</string>
+    <string name="qr_not_totp">QR found, but it is not an authenticator setup code</string>
+    <string name="qr_torch_on">Turn on light</string>
+    <string name="qr_torch_off">Turn off light</string>
     <string name="qr_scan_canceled">Scan canceled</string>
     <string name="qr_camera_start_failed">Could not start the camera</string>
     <string name="qr_camera_permission_needed">Camera permission is needed to scan an authenticator QR code</string>

@@ -1,14 +1,7 @@
 package dev.cybercore.cyberauth
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.DecodeHintType
-import com.google.zxing.PlanarYUVLuminanceSource
-import com.google.zxing.qrcode.QRCodeWriter
-import java.util.EnumMap
 
 class TotpTest {
     @Test fun rfc6238Sha1Vectors() {
@@ -24,29 +17,11 @@ class TotpTest {
         assertEquals(6, account.digits)
     }
 
-    @Test fun decodesAnAuthenticatorSetupQr() {
+    @Test fun acceptsAuthenticatorSetupQrPayload() {
         val payload = "otpauth://totp/GitHub%3Araven?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=GitHub"
-        val matrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 360, 360)
-        val luminance = ByteArray(matrix.width * matrix.height) { index ->
-            val x = index % matrix.width
-            val y = index / matrix.width
-            if (matrix[x, y]) 0.toByte() else 255.toByte()
-        }
-        val source = PlanarYUVLuminanceSource(luminance, matrix.width, matrix.height, 0, 0, matrix.width, matrix.height, false)
-        val hints = EnumMap<DecodeHintType, Any>(DecodeHintType::class.java).apply {
-            put(DecodeHintType.POSSIBLE_FORMATS, listOf(BarcodeFormat.QR_CODE))
-            put(DecodeHintType.TRY_HARDER, true)
-        }
-        assertEquals(payload, decodeQr(source, hints))
+        assertEquals(true, isTotpQrValue(payload))
+        assertEquals(false, isTotpQrValue("https://github.com/settings/security"))
         assertEquals("GitHub", Totp.parseOtpAuth(payload).issuer)
-    }
-
-    @Test fun compactsPaddedCameraRowsAndHandlesNonUnitPixelStride() {
-        val paddedRows = byteArrayOf(1, 2, 3, 99, 99, 4, 5, 6)
-        assertArrayEquals(byteArrayOf(1, 2, 3, 4, 5, 6), compactYPlane(paddedRows, 3, 2, 5, 1)!!)
-        val interleavedPixels = byteArrayOf(7, 0, 8, 0, 99, 9, 0, 10, 0)
-        assertArrayEquals(byteArrayOf(7, 8, 9, 10), compactYPlane(interleavedPixels, 2, 2, 5, 2)!!)
-        assertNull(compactYPlane(byteArrayOf(1, 2), 3, 1, 3, 1))
     }
 
     @Test fun rfc6238Sha256AndSha512Vectors() {
